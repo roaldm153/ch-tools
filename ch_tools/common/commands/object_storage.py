@@ -497,6 +497,10 @@ def _local_blobs_table(
 
             timeout = config["antijoin_timeout"]
             query_settings = {"receive_timeout": timeout, "max_execution_time": 0}
+            # The table is read through remote(), so the setting must be sent with the
+            # query rather than in its text to reach the shards.
+            if match_ch_version(ctx, "24.3"):
+                query_settings["traverse_shadow_remote_data_paths"] = 1
             execute_query(
                 ctx,
                 local_blobs_query,
@@ -1189,10 +1193,6 @@ def _get_fill_local_blobs_table_query(
     """
     Column 'size' in remote_data_paths is supported since 23.3.
     """
-    settings = ""
-    if match_ch_version(ctx, "24.3"):
-        settings = "SETTINGS traverse_shadow_remote_data_paths=1"
-
     size = "size"
     if not match_ch_version(ctx, "23.3"):
         size = "0"
@@ -1213,7 +1213,6 @@ def _get_fill_local_blobs_table_query(
                 1 AS ref_count
                 FROM {remote_data_paths_table}
                 WHERE disk_name = '{disk_name}'
-                {settings}
     """
 
     return Query(query, sensitive_args={"user_password": user_password})
